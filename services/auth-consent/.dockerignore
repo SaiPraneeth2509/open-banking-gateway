@@ -1,0 +1,31 @@
+# --- Python build artifacts ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+
+# --- Virtual environments ---
+venv/
+.env/
+
+# --- Dependency caches ---
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# --- Version control ---
+.git/
+.gitignore
+
+# --- IDE/editor configs ---
+.vscode/
+.idea/
+
+# --- Docker ---
+Dockerfile
+.dockerignore
+
+# --- OS files ---
+.DS_Store
+Thumbs.db

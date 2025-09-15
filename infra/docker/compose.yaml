@@ -1,0 +1,131 @@
+name: open-banking-dev
+
+services:
+  # Database (Postgres)
+  postgres:
+    image: postgres:15
+    container_name: obg-postgres
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bankuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bankpass}
+      POSTGRES_DB: ${POSTGRES_DB:-bankdb}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-bankuser} -d ${POSTGRES_DB:-bankdb}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # Cache (Redis)
+  redis:
+    image: redis:7
+    container_name: obg-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: ["redis-server", "--appendonly", "yes"] # durable enough for dev
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Auth (Keycloak)
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0.6
+    container_name: obg-keycloak
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_DB: postgres
+      KC_DB_USERNAME: ${POSTGRES_USER:-bankuser}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-bankpass}
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-bankdb}
+      KC_HEALTH_ENABLED: "true"
+      # KC_HOSTNAME: ${KC_HOSTNAME:-localhost}
+      KC_HOSTNAME_URL: http://localhost:8080
+      KC_HOSTNAME_ADMIN_URL: http://localhost:8080
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+    ports:
+      - "${KEYCLOAK_HTTP_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      - start-dev
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\n\r\n' >&3 && timeout 5 cat <&3 | grep -q '\"status\"\\s*:\\s*\"UP\"'",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 15
+      start_period: 60s
+
+  # Email Testing (MailHog)
+  mailhog:
+    image: mailhog/mailhog
+    container_name: obg-mailhog
+    restart: unless-stopped
+    ports:
+      - "${MAILHOG_SMTP_PORT:-1025}:1025"
+      - "${MAILHOG_HTTP_PORT:-8025}:8025"
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:8025/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Auth-Consent API (FastAPI)
+  auth-consent:
+    build:
+      context: ../../services/auth-consent
+      dockerfile: Dockerfile
+    container_name: obg-auth-consent
+    restart: unless-stopped
+    env_file:
+      - ../../services/auth-consent/.env # dev-only; keep out of git
+    environment:
+      KEYCLOAK_ISSUER: http://localhost:8080/realms/obg-realm
+      KEYCLOAK_AUDIENCE: obg-auth-consent
+      KEYCLOAK_WELLKNOWN_URL: http://keycloak:8080/realms/obg-realm/.well-known/openid-configuration
+      DATABASE_URL: ${AUTH_CONSENT_DATABASE_URL:-postgresql+psycopg2://bankuser:bankpass@postgres:5432/bankdb}
+      REDIS_URL: ${AUTH_CONSENT_REDIS_URL:-redis://redis:6379/0}
+      APP_ENV: dev
+    command:
+      [
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--proxy-headers",
+      ]
+    ports:
+      - "${AUTH_CONSENT_HTTP_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

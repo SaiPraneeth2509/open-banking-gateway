@@ -1,0 +1,49 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+
+# Python
+__pycache__/
+*.py[cod]
+*.env
+.venv/
+venv/
+.env*
+.mypy_cache/
+.pytest_cache/
+.coverage*
+dist/
+build/
+
+
+# Node/JS
+node_modules/
+yarn.lock
+pnpm-lock.yaml
+package-lock.json
+.next/
+coverage/
+
+
+# Docker
+*.log
+.skaffold/
+.docker/
+
+
+# Misc
+*.sqlite3
+*.db
+
+
+# Local tooling
+.env.local
+.env.development
+.env.production
+
+.env
+**/postgres_data/
+**/.DS_Store
