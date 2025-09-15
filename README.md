@@ -1,4 +1,4 @@
-# open-banking-gateway# Open Banking API Gateway (PSD2 / BaaS)
+# Open Banking API Gateway (PSD2 / BaaS) # 
 
 Minimal foundation repo. Folders:
 
